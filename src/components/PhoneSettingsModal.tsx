@@ -54,8 +54,8 @@ export const PhoneSettingsModal: React.FC<PhoneSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="relative bg-zinc-950 border border-amber-500/40 rounded-3xl max-w-md w-full text-white shadow-2xl overflow-hidden p-6">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="relative bg-zinc-950 border-t sm:border border-amber-500/40 rounded-t-3xl sm:rounded-3xl max-w-md w-full text-white shadow-2xl overflow-hidden p-5 sm:p-6">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
           <div className="flex items-center space-x-3">
@@ -82,8 +82,9 @@ export const PhoneSettingsModal: React.FC<PhoneSettingsModalProps> = ({
               Número de WhatsApp para recibir pedidos:
             </label>
             <input
-              type="text"
-              placeholder="Ej: 0981 123 456 ó 595981123456"
+              type="tel"
+              inputMode="tel"
+              placeholder="Ej: 0981 123 456"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-base font-bold focus:outline-none focus:border-amber-500 text-amber-400 placeholder-zinc-600 tracking-wide"

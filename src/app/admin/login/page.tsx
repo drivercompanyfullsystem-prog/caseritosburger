@@ -72,10 +72,10 @@ export default function AdminLoginPage() {
           <span>Volver al Menú Público de Pedidos</span>
         </Link>
 
-        <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-8 shadow-2xl backdrop-blur-md">
+        <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md">
           {/* Logo y Título */}
           <div className="flex flex-col items-center text-center mb-6">
-            <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-amber-500 shadow-lg shadow-orange-500/20 bg-black p-0.5 mb-4">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-amber-500 shadow-lg shadow-orange-500/20 bg-black p-0.5 mb-3.5 sm:mb-4">
               <img
                 src="/logo.jpg"
                 alt="Caseritos Burguer"
@@ -86,9 +86,9 @@ export default function AdminLoginPage() {
             <span className="text-[11px] font-black tracking-widest uppercase px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 mb-2">
               Acceso Privado
             </span>
-            <h1 className="text-2xl font-black text-white">Panel de Administración</h1>
+            <h1 className="text-xl sm:text-2xl font-black text-white">Panel de Administración</h1>
             <p className="text-xs text-zinc-400 mt-1">
-              Inicia sesión con tu cuenta de administrador para gestionar productos y precios
+              Inicia sesión para gestionar productos, disponibilidad y precios
             </p>
           </div>
 
