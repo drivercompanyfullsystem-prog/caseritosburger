@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-/** PATCH: Actualiza el estado de un pedido (solo administrador) */
+/** PATCH: Actualiza el estado o los datos completos de un pedido (solo administrador) */
 export async function PATCH(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!session) {
@@ -141,37 +141,43 @@ export async function PATCH(req: NextRequest) {
       order?: OrderRecord;
     };
 
-    if (!body.id || !body.status || !VALID_STATUSES.includes(body.status)) {
-      return NextResponse.json({ error: 'Parámetros de estado inválidos.' }, { status: 400 });
+    const targetId = body.id || body.order?.id;
+    const nextStatus = body.status || body.order?.status;
+
+    if (!targetId || !nextStatus || !VALID_STATUSES.includes(nextStatus)) {
+      return NextResponse.json({ error: 'Parámetros de actualización inválidos.' }, { status: 400 });
     }
 
     const store = await readOrdersStore();
-    const existing = store.orders[body.id] || body.order;
+    const existing = store.orders[targetId] || body.order;
     if (!existing) {
       return NextResponse.json({ error: 'Pedido no encontrado.' }, { status: 404 });
     }
 
     const now = Date.now();
-    const updated: OrderRecord = {
+    const merged: OrderRecord = {
       ...existing,
-      id: body.id,
-      status: body.status,
+      ...(body.order || {}),
+      id: targetId,
+      status: nextStatus,
       updatedAt: now,
       completedAt:
-        body.status === 'entregado' ? existing.completedAt || now : undefined,
+        nextStatus === 'entregado'
+          ? body.order?.completedAt || existing.completedAt || now
+          : undefined,
     };
 
-    store.orders[body.id] = updated;
+    store.orders[targetId] = merged;
     await writeOrdersStore(store);
 
-    return NextResponse.json({ ok: true, order: updated }, { status: 200 });
+    return NextResponse.json({ ok: true, order: merged }, { status: 200 });
   } catch (error: unknown) {
     console.error('Error en PATCH /api/orders:', error);
-    return NextResponse.json({ error: 'Error al actualizar el estado.' }, { status: 500 });
+    return NextResponse.json({ error: 'Error al actualizar el pedido.' }, { status: 500 });
   }
 }
 
-/** DELETE: Elimina un pedido (solo administrador) */
+/** DELETE: Elimina un pedido (?id=...) o vacía todo el historial (?all=true) (solo administrador) */
 export async function DELETE(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE_NAME)?.value);
   if (!session) {
@@ -180,12 +186,25 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+    const clearAll = searchParams.get('all') === 'true';
     const id = searchParams.get('id');
+
+    const store = await readOrdersStore();
+
+    if (clearAll) {
+      const now = Date.now();
+      for (const existingId of Object.keys(store.orders)) {
+        store.deletedIds[existingId] = now;
+      }
+      store.orders = {};
+      await writeOrdersStore(store);
+      return NextResponse.json({ ok: true, cleared: true }, { status: 200 });
+    }
+
     if (!id) {
       return NextResponse.json({ error: 'Falta el ID del pedido.' }, { status: 400 });
     }
 
-    const store = await readOrdersStore();
     delete store.orders[id];
     store.deletedIds[id] = Date.now();
     await writeOrdersStore(store);

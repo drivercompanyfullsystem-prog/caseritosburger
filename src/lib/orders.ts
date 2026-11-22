@@ -305,6 +305,52 @@ export async function updateOrderStatus(
   return updated;
 }
 
+export async function updateOrderRecord(order: OrderRecord): Promise<OrderRecord> {
+  const now = Date.now();
+  const recalculatedTotal = order.items.reduce((sum, i) => sum + i.subtotal, 0);
+  const updated: OrderRecord = {
+    ...order,
+    customerName: order.customerName.trim(),
+    phoneNumber: (order.phoneNumber || '').trim(),
+    address: order.address?.trim() || undefined,
+    references: order.references?.trim() || undefined,
+    notes: order.notes?.trim() || undefined,
+    totalPrice: recalculatedTotal,
+    updatedAt: now,
+    completedAt:
+      order.status === 'entregado' ? order.completedAt || now : undefined,
+  };
+
+  const local = readLocalOrders();
+  saveLocalOrders(mergeOrders([updated], local));
+
+  if (typeof window !== 'undefined') {
+    try {
+      await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: updated.id, status: updated.status, order: updated }),
+      });
+    } catch {
+      // ignorar
+    }
+  }
+
+  if (db) {
+    try {
+      await setDoc(
+        doc(db, 'orders', updated.id),
+        cleanUndefined(updated as unknown as Record<string, unknown>),
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('No se pudo actualizar el pedido en Firestore:', e);
+    }
+  }
+
+  return updated;
+}
+
 export async function deleteOrderRecord(id: string): Promise<void> {
   const filtered = readLocalOrders().filter((o) => o.id !== id);
   saveLocalOrders(filtered);
@@ -323,5 +369,27 @@ export async function deleteOrderRecord(id: string): Promise<void> {
     } catch (e) {
       console.warn('No se pudo eliminar el pedido en Firestore:', e);
     }
+  }
+}
+
+export async function clearAllOrders(existingIds: string[]): Promise<void> {
+  saveLocalOrders([]);
+
+  if (typeof window !== 'undefined') {
+    try {
+      await fetch('/api/orders?all=true', { method: 'DELETE' });
+    } catch {
+      // ignorar
+    }
+  }
+
+  if (db && existingIds.length > 0) {
+    await Promise.all(
+      existingIds.map((id) =>
+        deleteDoc(doc(db!, 'orders', id)).catch((e) => {
+          console.warn('No se pudo eliminar pedido en Firestore:', id, e);
+        })
+      )
+    );
   }
 }

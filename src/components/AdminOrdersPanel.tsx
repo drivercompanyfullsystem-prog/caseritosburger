@@ -16,10 +16,19 @@ import {
   Banknote,
   Building2,
   CreditCard,
+  Edit3,
+  Minus,
+  AlertTriangle,
 } from 'lucide-react';
 import { OrderRecord, OrderStatus, Product } from '@/types';
 import { formatGuaranies, generateOrderStatusWhatsAppLink } from '@/utils/whatsapp';
-import { createManualOrder, deleteOrderRecord, updateOrderStatus } from '@/lib/orders';
+import {
+  clearAllOrders,
+  createManualOrder,
+  deleteOrderRecord,
+  updateOrderRecord,
+  updateOrderStatus,
+} from '@/lib/orders';
 
 interface AdminOrdersPanelProps {
   orders: OrderRecord[];
@@ -84,6 +93,9 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
 }) => {
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<OrderRecord | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearingAll, setIsClearingAll] = useState(false);
   const [autoOpenWhatsApp, setAutoOpenWhatsApp] = useState(false);
   const [notifyPrompt, setNotifyPrompt] = useState<{
     orderNumber: string;
@@ -92,9 +104,10 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
     whatsappUrl: string;
   } | null>(null);
 
-  // Estado del formulario rápido para venta manual
+  // Estado del formulario rápido para crear o editar pedido
   const [manualName, setManualName] = useState('');
   const [manualPhone, setManualPhone] = useState('');
+  const [manualAddress, setManualAddress] = useState('');
   const [manualDelivery, setManualDelivery] = useState<'delivery' | 'pickup'>('pickup');
   const [manualPayment, setManualPayment] = useState<'Efectivo' | 'Transferencia' | 'POS'>('Efectivo');
   const [manualStatus, setManualStatus] = useState<OrderStatus>('pendiente');
@@ -103,6 +116,49 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
   const [selectedQty, setSelectedQty] = useState(1);
   const [manualItems, setManualItems] = useState<OrderRecord['items']>([]);
   const [isSavingManual, setIsSavingManual] = useState(false);
+
+  const openCreateModal = () => {
+    setEditingOrder(null);
+    setManualName('');
+    setManualPhone('');
+    setManualAddress('');
+    setManualDelivery('pickup');
+    setManualPayment('Efectivo');
+    setManualStatus('pendiente');
+    setManualNotes('');
+    setManualItems([]);
+    setSelectedQty(1);
+    if (!selectedProductId && products[0]?.id) setSelectedProductId(products[0].id);
+    setIsManualModalOpen(true);
+  };
+
+  const openEditModal = (order: OrderRecord) => {
+    setEditingOrder(order);
+    setManualName(order.customerName);
+    setManualPhone(order.phoneNumber || '');
+    setManualAddress(order.address || '');
+    setManualDelivery(order.deliveryMethod);
+    setManualPayment(order.paymentMethod);
+    setManualStatus(order.status);
+    setManualNotes(order.notes || '');
+    setManualItems(order.items.map((i) => ({ ...i })));
+    setSelectedQty(1);
+    if (!selectedProductId && products[0]?.id) setSelectedProductId(products[0].id);
+    setIsManualModalOpen(true);
+  };
+
+  const handleClearAllOrders = async () => {
+    setIsClearingAll(true);
+    try {
+      await clearAllOrders(orders.map((o) => o.id));
+      onOrdersChange(() => []);
+      setNotifyPrompt(null);
+      setShowClearConfirm(false);
+      onToast('Historial de pedidos y Finanzas vaciados');
+    } finally {
+      setIsClearingAll(false);
+    }
+  };
 
   const counts = {
     all: orders.length,
@@ -180,6 +236,19 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
     setSelectedQty(1);
   };
 
+  const handleUpdateManualItemQty = (productId: string, delta: number) => {
+    setManualItems((prev) =>
+      prev
+        .map((i) => {
+          if (i.productId !== productId) return i;
+          const nextQty = i.quantity + delta;
+          if (nextQty <= 0) return null;
+          return { ...i, quantity: nextQty, subtotal: nextQty * i.unitPrice };
+        })
+        .filter((i): i is OrderRecord['items'][number] => i !== null)
+    );
+  };
+
   const handleRemoveManualItem = (productId: string) => {
     setManualItems((prev) => prev.filter((i) => i.productId !== productId));
   };
@@ -192,24 +261,44 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
 
     setIsSavingManual(true);
     try {
-      const created = await createManualOrder({
-        customerName: manualName.trim(),
-        phoneNumber: manualPhone.trim(),
-        deliveryMethod: manualDelivery,
-        paymentMethod: manualPayment,
-        items: manualItems,
-        notes: manualNotes.trim() || undefined,
-        status: manualStatus,
-      });
+      if (editingOrder) {
+        const updated = await updateOrderRecord({
+          ...editingOrder,
+          customerName: manualName.trim(),
+          phoneNumber: manualPhone.trim(),
+          address: manualDelivery === 'delivery' ? manualAddress.trim() || undefined : undefined,
+          deliveryMethod: manualDelivery,
+          paymentMethod: manualPayment,
+          status: manualStatus,
+          notes: manualNotes.trim() || undefined,
+          items: manualItems,
+          totalPrice: manualTotal,
+        });
+        onOrdersChange((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+        onToast(`Pedido ${updated.orderNumber} actualizado (${formatGuaranies(updated.totalPrice)})`);
+      } else {
+        const created = await createManualOrder({
+          customerName: manualName.trim(),
+          phoneNumber: manualPhone.trim(),
+          deliveryMethod: manualDelivery,
+          paymentMethod: manualPayment,
+          items: manualItems,
+          notes: manualNotes.trim() || undefined,
+          status: manualStatus,
+        });
 
-      onOrdersChange((prev) => [created, ...prev.filter((o) => o.id !== created.id)]);
-      onToast(
-        manualStatus === 'entregado'
-          ? `Venta ${created.orderNumber} registrada como Entregada (${formatGuaranies(created.totalPrice)})`
-          : `Pedido ${created.orderNumber} registrado como Pendiente`
-      );
+        onOrdersChange((prev) => [created, ...prev.filter((o) => o.id !== created.id)]);
+        onToast(
+          manualStatus === 'entregado'
+            ? `Venta ${created.orderNumber} registrada como Entregada (${formatGuaranies(created.totalPrice)})`
+            : `Pedido ${created.orderNumber} registrado como Pendiente`
+        );
+      }
+
+      setEditingOrder(null);
       setManualName('');
       setManualPhone('');
+      setManualAddress('');
       setManualNotes('');
       setManualItems([]);
       setManualStatus('pendiente');
@@ -231,18 +320,57 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
               <strong className="text-emerald-400">Entregados</strong> a Finanzas.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!selectedProductId && products[0]?.id) setSelectedProductId(products[0].id);
-              setIsManualModalOpen(true);
-            }}
-            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-600/25 transition flex items-center justify-center gap-2 shrink-0"
-          >
-            <Plus className="w-4 h-4 shrink-0" />
-            <span>Registrar Pedido Manual</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-600/25 transition flex items-center justify-center gap-2 shrink-0"
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              <span>Registrar Pedido Manual</span>
+            </button>
+
+            {orders.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm((prev) => !prev)}
+                className="w-full sm:w-auto min-h-[42px] px-3.5 py-2 rounded-xl bg-red-950/35 hover:bg-red-900/50 border border-red-700/50 text-red-300 text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Vaciar historial</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Confirmación segura para vaciar todos los pedidos */}
+        {showClearConfirm && orders.length > 0 && (
+          <div className="p-3.5 bg-red-950/45 border border-red-600/50 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-in fade-in">
+            <span className="text-red-200 font-semibold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>
+                ¿Vaciar los <strong>{orders.length}</strong> pedidos y reiniciar Finanzas a Gs. 0?
+              </span>
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleClearAllOrders}
+                disabled={isClearingAll}
+                className="flex-1 sm:flex-none min-h-[38px] px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-bold transition"
+              >
+                {isClearingAll ? 'Vaciando...' : 'Sí, vaciar todo'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                className="min-h-[38px] px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Toggle de apertura automática de WhatsApp */}
         <label className="flex items-center justify-between gap-3 pt-3 border-t border-zinc-800/80 cursor-pointer">
@@ -410,18 +538,31 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
                     )}
                   </div>
 
-                  {statusWaUrl && (
-                    <a
-                      href={statusWaUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5 shrink-0 transition whitespace-nowrap"
-                      title={`Enviar aviso de estado "${meta.label}" por WhatsApp`}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(order)}
+                      aria-label={`Editar pedido ${order.orderNumber}`}
+                      className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-[11px] font-bold flex items-center gap-1 transition whitespace-nowrap"
+                      title="Editar datos, ítems o estado"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>Avisar WA</span>
-                    </a>
-                  )}
+                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Editar</span>
+                    </button>
+
+                    {statusWaUrl && (
+                      <a
+                        href={statusWaUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center gap-1 shrink-0 transition whitespace-nowrap"
+                        title={`Enviar aviso de estado "${meta.label}" por WhatsApp`}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Avisar WA</span>
+                      </a>
+                    )}
+                  </div>
                 </div>
 
                 {/* Detalle de productos */}
@@ -582,21 +723,30 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
         </div>
       )}
 
-      {/* Modal Bottom-Sheet para Registrar Venta / Pedido Manual */}
+      {/* Modal Bottom-Sheet para Registrar o Editar Pedido */}
       {isManualModalOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="relative bg-zinc-950 border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[92vh] text-white shadow-2xl flex flex-col overflow-hidden">
             <div className="px-4 sm:px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-base sm:text-lg font-bold">🧾 Registrar Pedido Manual</h3>
+                <h3 className="text-base sm:text-lg font-bold">
+                  {editingOrder
+                    ? `✏️ Editar Pedido ${editingOrder.orderNumber}`
+                    : '🧾 Registrar Pedido Manual'}
+                </h3>
                 <p className="text-[11px] text-zinc-400">
-                  Ideal para ventas por mostrador o WhatsApp directo
+                  {editingOrder
+                    ? 'Modifica cliente, productos, cantidades, pago o estado'
+                    : 'Ideal para ventas por mostrador o WhatsApp directo'}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setIsManualModalOpen(false)}
-                aria-label="Cerrar registro manual"
+                onClick={() => {
+                  setIsManualModalOpen(false);
+                  setEditingOrder(null);
+                }}
+                aria-label="Cerrar modal de pedido"
                 className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900"
               >
                 <X className="w-5 h-5" />
@@ -664,19 +814,37 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
                     {manualItems.map((item) => (
                       <div
                         key={item.productId}
-                        className="flex items-center justify-between gap-2 text-xs bg-zinc-950/80 px-3 py-2 rounded-lg"
+                        className="flex items-center justify-between gap-2 text-xs bg-zinc-950/80 px-2.5 py-2 rounded-lg"
                       >
-                        <span className="truncate">
-                          <strong className="text-amber-400">{item.quantity}x</strong> {item.name}
-                        </span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-bold text-zinc-200">
+                        <span className="truncate font-semibold text-zinc-100">{item.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateManualItemQty(item.productId, -1)}
+                            aria-label={`Restar ${item.name}`}
+                            className="w-7 h-7 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 flex items-center justify-center"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="w-5 text-center font-black text-amber-400">
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateManualItemQty(item.productId, 1)}
+                            aria-label={`Sumar ${item.name}`}
+                            className="w-7 h-7 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-200 flex items-center justify-center"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                          <span className="font-bold text-zinc-200 min-w-[68px] text-right">
                             {formatGuaranies(item.subtotal)}
                           </span>
                           <button
                             type="button"
                             onClick={() => handleRemoveManualItem(item.productId)}
-                            className="text-zinc-500 hover:text-red-400"
+                            aria-label={`Quitar ${item.name}`}
+                            className="text-zinc-500 hover:text-red-400 p-1"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -714,8 +882,20 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
                 </select>
               </div>
 
+              {manualDelivery === 'delivery' && (
+                <input
+                  type="text"
+                  placeholder="Dirección de delivery (opcional)"
+                  value={manualAddress}
+                  onChange={(e) => setManualAddress(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-zinc-900 border border-zinc-800 rounded-xl text-xs sm:text-sm text-white placeholder-zinc-500"
+                />
+              )}
+
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-300 block">Estado inicial</label>
+                <label className="text-xs font-semibold text-zinc-300 block">
+                  {editingOrder ? 'Estado del pedido' : 'Estado inicial'}
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -730,6 +910,17 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
                   </button>
                   <button
                     type="button"
+                    onClick={() => setManualStatus('en_preparacion')}
+                    className={`py-2.5 rounded-xl border text-xs font-bold transition ${
+                      manualStatus === 'en_preparacion'
+                        ? 'bg-sky-500/20 border-sky-500 text-sky-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    🟠 En prep.
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setManualStatus('entregado')}
                     className={`py-2.5 rounded-xl border text-xs font-bold transition ${
                       manualStatus === 'entregado'
@@ -737,7 +928,18 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
                         : 'bg-zinc-900 border-zinc-800 text-zinc-400'
                     }`}
                   >
-                    🟢 Ya Entregado
+                    🟢 Entregado
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManualStatus('cancelado')}
+                    className={`py-2.5 rounded-xl border text-xs font-bold transition ${
+                      manualStatus === 'cancelado'
+                        ? 'bg-red-500/20 border-red-500 text-red-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    🔴 Cancelado
                   </button>
                 </div>
               </div>
@@ -757,6 +959,8 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
               >
                 {isSavingManual
                   ? 'Guardando...'
+                  : editingOrder
+                  ? `Guardar Cambios (${formatGuaranies(manualTotal)})`
                   : `Guardar Pedido (${formatGuaranies(manualTotal)})`}
               </button>
             </form>
