@@ -18,7 +18,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { OrderRecord, OrderStatus, Product } from '@/types';
-import { formatGuaranies, normalizeParaguayPhone } from '@/utils/whatsapp';
+import { formatGuaranies, generateOrderStatusWhatsAppLink } from '@/utils/whatsapp';
 import { createManualOrder, deleteOrderRecord, updateOrderStatus } from '@/lib/orders';
 
 interface AdminOrdersPanelProps {
@@ -84,6 +84,13 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
 }) => {
   const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [autoOpenWhatsApp, setAutoOpenWhatsApp] = useState(false);
+  const [notifyPrompt, setNotifyPrompt] = useState<{
+    orderNumber: string;
+    customerName: string;
+    statusLabel: string;
+    whatsappUrl: string;
+  } | null>(null);
 
   // Estado del formulario rápido para venta manual
   const [manualName, setManualName] = useState('');
@@ -111,6 +118,19 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
   const handleChangeStatus = async (order: OrderRecord, nextStatus: OrderStatus) => {
     const updated = await updateOrderStatus(order, nextStatus);
     onOrdersChange((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
+
+    const waUrl = generateOrderStatusWhatsAppLink(updated, nextStatus);
+    if (waUrl) {
+      setNotifyPrompt({
+        orderNumber: updated.orderNumber,
+        customerName: updated.customerName,
+        statusLabel: STATUS_META[nextStatus].label,
+        whatsappUrl: waUrl,
+      });
+      if (autoOpenWhatsApp) {
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+    }
 
     if (nextStatus === 'entregado') {
       onToast(`${order.orderNumber} marcado como Entregado (+${formatGuaranies(order.totalPrice)} en Finanzas)`);
@@ -202,26 +222,79 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
   return (
     <div className="space-y-5">
       {/* Encabezado y botón de registro manual */}
-      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-        <div>
-          <h2 className="text-lg sm:text-xl font-black text-white">Control de Pedidos</h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Cada pedido web entra como <strong className="text-amber-300">Pendiente</strong>. Al marcarlo{' '}
-            <strong className="text-emerald-400">Entregado</strong>, se suma automáticamente a Finanzas.
-          </p>
+      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div>
+            <h2 className="text-lg sm:text-xl font-black text-white">Control de Pedidos</h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Al cambiar un estado, genera el aviso automático de WhatsApp y suma los{' '}
+              <strong className="text-emerald-400">Entregados</strong> a Finanzas.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!selectedProductId && products[0]?.id) setSelectedProductId(products[0].id);
+              setIsManualModalOpen(true);
+            }}
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-600/25 transition flex items-center justify-center gap-2 shrink-0"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span>Registrar Pedido Manual</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (!selectedProductId && products[0]?.id) setSelectedProductId(products[0].id);
-            setIsManualModalOpen(true);
-          }}
-          className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-600/25 transition flex items-center justify-center gap-2 shrink-0"
-        >
-          <Plus className="w-4 h-4 shrink-0" />
-          <span>Registrar Pedido Manual</span>
-        </button>
+
+        {/* Toggle de apertura automática de WhatsApp */}
+        <label className="flex items-center justify-between gap-3 pt-3 border-t border-zinc-800/80 cursor-pointer">
+          <span className="text-xs text-zinc-300 flex items-center gap-2">
+            <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Abrir WhatsApp automáticamente al cambiar estado</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={autoOpenWhatsApp}
+            onChange={(e) => setAutoOpenWhatsApp(e.target.checked)}
+            className="w-4 h-4 accent-emerald-500 rounded shrink-0"
+          />
+        </label>
       </div>
+
+      {/* Aviso rápido de WhatsApp tras cambiar de estado */}
+      {notifyPrompt && (
+        <div className="p-3.5 sm:p-4 bg-emerald-950/40 border border-emerald-500/50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <MessageCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-bold text-emerald-200 truncate">
+                {notifyPrompt.orderNumber} → {notifyPrompt.statusLabel}
+              </p>
+              <p className="text-[11px] text-emerald-300/80">
+                Mensaje listo para notificar a <strong>{notifyPrompt.customerName}</strong> por WhatsApp
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={notifyPrompt.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 sm:flex-none min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition whitespace-nowrap"
+            >
+              <MessageCircle className="w-4 h-4 shrink-0" />
+              <span>Enviar aviso WA</span>
+            </a>
+            <button
+              type="button"
+              onClick={() => setNotifyPrompt(null)}
+              aria-label="Descartar aviso de WhatsApp"
+              className="min-w-[36px] min-h-[36px] rounded-xl bg-zinc-900/80 text-zinc-400 hover:text-white flex items-center justify-center"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filtros por Estado (adaptados a móvil en wrap) */}
       <div className="flex flex-wrap gap-2">
@@ -276,7 +349,7 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredOrders.map((order) => {
             const meta = STATUS_META[order.status];
-            const cleanPhone = order.phoneNumber ? normalizeParaguayPhone(order.phoneNumber) : '';
+            const statusWaUrl = generateOrderStatusWhatsAppLink(order);
 
             return (
               <div
@@ -337,16 +410,16 @@ export const AdminOrdersPanel: React.FC<AdminOrdersPanelProps> = ({
                     )}
                   </div>
 
-                  {cleanPhone && (
+                  {statusWaUrl && (
                     <a
-                      href={`https://api.whatsapp.com/send?phone=${cleanPhone}`}
+                      href={statusWaUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="min-h-[36px] px-2.5 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center gap-1 shrink-0 transition"
-                      title="Escribir al cliente por WhatsApp"
+                      className="min-h-[38px] px-3 py-1.5 rounded-xl bg-emerald-950/50 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5 shrink-0 transition whitespace-nowrap"
+                      title={`Enviar aviso de estado "${meta.label}" por WhatsApp`}
                     >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      <span>Chat</span>
+                      <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Avisar WA</span>
                     </a>
                   )}
                 </div>

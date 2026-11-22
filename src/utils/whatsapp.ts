@@ -1,4 +1,4 @@
-import { Coordinates, CustomerOrder } from '../types';
+import { Coordinates, CustomerOrder, OrderRecord, OrderStatus } from '../types';
 
 const pygFormatter = new Intl.NumberFormat('es-PY');
 
@@ -252,4 +252,47 @@ export function buildOrderData(order: CustomerOrder): OrderData {
 
 export function getWhatsAppUrl(order: CustomerOrder): string {
   return generateWhatsAppLink(getBusinessWhatsAppPhone(), buildOrderData(order));
+}
+
+/**
+ * Genera el enlace directo a WhatsApp del cliente con mensaje predeterminado
+ * según el estado actual del pedido (pendiente, en_preparacion, entregado o cancelado).
+ */
+export function generateOrderStatusWhatsAppLink(
+  order: OrderRecord,
+  overrideStatus?: OrderStatus
+): string | null {
+  const rawPhone = order.phoneNumber?.trim();
+  if (!rawPhone) return null;
+
+  const cleanPhone = normalizeParaguayPhone(rawPhone).replace(/\D/g, '');
+  if (!cleanPhone) return null;
+
+  const status = overrideStatus || order.status;
+  const name = order.customerName.trim() || 'cliente';
+  const total = formatGuaranies(order.totalPrice);
+  const isDelivery = order.deliveryMethod === 'delivery';
+
+  let text = '';
+  switch (status) {
+    case 'en_preparacion':
+      text = isDelivery
+        ? `\u{1F525} *CASERITOS BURGUER*\n¡Hola *${name}*! Tu pedido *${order.orderNumber}* (${total}) ya está *en preparación* \u{1F354}\u{1F35F}.\n\nEn breve sale el delivery hacia tu dirección. ¡Gracias por elegirnos!`
+        : `\u{1F525} *CASERITOS BURGUER*\n¡Hola *${name}*! Tu pedido *${order.orderNumber}* (${total}) ya está *en preparación* \u{1F354}\u{1F35F}.\n\nEn aprox. 15 a 25 min estará listo para retirar en *Km 13.5*. ¡Te esperamos!`;
+      break;
+    case 'entregado':
+      text = isDelivery
+        ? `\u{2705} *CASERITOS BURGUER*\n¡Hola *${name}*! Tu pedido *${order.orderNumber}* fue marcado como *entregado* \u{1F6F5}\u{1F354}.\n\n¡Esperamos que lo disfrutes muchísimo! Gracias por tu compra \u{1F64C}.`
+        : `\u{2705} *CASERITOS BURGUER*\n¡Hola *${name}*! Gracias por retirar tu pedido *${order.orderNumber}* \u{1F354}\u{1F64C}.\n\n¡Esperamos que lo disfrutes muchísimo! Te esperamos pronto.`;
+      break;
+    case 'cancelado':
+      text = `\u{274C} *CASERITOS BURGUER*\nHola *${name}*, te avisamos que tu pedido *${order.orderNumber}* fue *cancelado*.\n\nSi fue un error o deseas realizar un nuevo pedido, escríbenos por aquí y te ayudamos al instante.`;
+      break;
+    case 'pendiente':
+    default:
+      text = `\u{1F354} *CASERITOS BURGUER*\n¡Hola *${name}*! Recibimos tu pedido *${order.orderNumber}* por *${total}*.\n\nEn breve te avisamos apenas empecemos a prepararlo \u{1F64C}.`;
+      break;
+  }
+
+  return `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(text)}`;
 }
