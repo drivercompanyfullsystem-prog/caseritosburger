@@ -9,7 +9,7 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { AiAssistant } from '@/components/AiAssistant';
 import { Product } from '@/types';
-import { fetchProducts } from '@/lib/firebase';
+import { subscribeToProducts, fetchBusinessPhoneFromCloud } from '@/lib/firebase';
 import { Search, Sparkles, FileDown, Heart, ArrowRight, X, Tag, Loader2 } from 'lucide-react';
 import { generateMenuPDF } from '@/utils/pdfGenerator';
 import { useCart } from '@/context/CartContext';
@@ -86,18 +86,13 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    async function loadData() {
-      setIsLoading(true);
-      try {
-        const prods = await fetchProducts();
-        setProducts(prods);
-      } catch (err) {
-        console.error('Error al cargar productos:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadData();
+    setIsLoading(true);
+    fetchBusinessPhoneFromCloud();
+    const unsubscribe = subscribeToProducts((prods) => {
+      setProducts(prods);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleDownloadPDF = async () => {

@@ -14,12 +14,11 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, comboProduct }) => {
   const { addToCart, updateQuantity, items } = useCart();
-  const hasComboOption = Boolean(comboProduct && comboProduct.available);
+  const hasComboOption = Boolean(product.available && comboProduct && comboProduct.available);
   const [selectedMode, setSelectedMode] = useState<'solo' | 'combo'>('solo');
 
-  const activeProduct = hasComboOption && selectedMode === 'combo' && comboProduct
-    ? comboProduct
-    : product;
+  const activeProduct =
+    hasComboOption && selectedMode === 'combo' && comboProduct ? comboProduct : product;
 
   const existingItem = items.find((item) => item.product.id === activeProduct.id);
   const soloQty = items.find((item) => item.product.id === product.id)?.quantity || 0;

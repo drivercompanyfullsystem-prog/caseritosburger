@@ -20,7 +20,8 @@ import {
 } from 'lucide-react';
 import { Product } from '@/types';
 import {
-  fetchProducts,
+  subscribeToProducts,
+  fetchBusinessPhoneFromCloud,
   toggleProductAvailability,
   deleteProduct,
   isFirebaseConfigured,
@@ -67,18 +68,16 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setCurrentPhone(getBusinessWhatsAppPhone());
-    async function loadMenu() {
-      setIsLoading(true);
-      try {
-        const list = await fetchProducts();
-        setProducts(list);
-      } catch (err) {
-        console.error('Error al cargar productos en el dashboard:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadMenu();
+    fetchBusinessPhoneFromCloud().then((cloudPhone) => {
+      if (cloudPhone) setCurrentPhone(cloudPhone);
+    });
+
+    setIsLoading(true);
+    const unsubscribe = subscribeToProducts((list) => {
+      setProducts(list);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {

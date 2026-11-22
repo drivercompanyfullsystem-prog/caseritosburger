@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Phone, Check, ExternalLink, HelpCircle } from 'lucide-react';
-import { getBusinessWhatsAppPhone, setBusinessWhatsAppPhone, normalizeParaguayPhone } from '../utils/whatsapp';
+import { getBusinessWhatsAppPhone, normalizeParaguayPhone } from '../utils/whatsapp';
+import { saveBusinessPhoneToCloud } from '../lib/firebase';
 
 interface PhoneSettingsModalProps {
   isOpen: boolean;
@@ -30,11 +31,11 @@ export const PhoneSettingsModal: React.FC<PhoneSettingsModalProps> = ({
 
   const normalized = normalizeParaguayPhone(phoneNumber);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!phoneNumber.trim()) return;
 
-    setBusinessWhatsAppPhone(phoneNumber);
+    await saveBusinessPhoneToCloud(phoneNumber);
     setSavedSuccess(true);
     if (onPhoneUpdated) {
       onPhoneUpdated(normalized);

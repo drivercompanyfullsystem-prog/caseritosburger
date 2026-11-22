@@ -15,15 +15,10 @@ export interface AdminSessionPayload {
 
 const encoder = new TextEncoder();
 
-function isProduction(): boolean {
-  return process.env.NODE_ENV === 'production';
-}
-
-/** Contraseña de administrador configurada (en desarrollo local usa un valor por defecto). */
-export function getAdminPassword(): string | null {
+/** Contraseña de administrador configurada (usa ADMIN_PASSWORD o fallback admin1234 si no se definió). */
+export function getAdminPassword(): string {
   const configured = (process.env.ADMIN_PASSWORD || '').trim();
-  if (configured) return configured;
-  return isProduction() ? null : DEV_FALLBACK_PASSWORD;
+  return configured || DEV_FALLBACK_PASSWORD;
 }
 
 /** Correo de administrador opcional. Si no está configurado, se acepta cualquier correo válido. */
