@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
         .replace(/(^-|-$)/g, '')
         .slice(0, 40) || 'producto';
 
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
     // 3. Si GOOGLE_AI_API_KEY está configurada, generar con Google AI Studio (Imagen 3 / Gemini)
     if (apiKey && apiKey.trim() !== '' && !apiKey.includes('tu_gemini_api_key')) {

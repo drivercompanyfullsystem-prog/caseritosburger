@@ -15,6 +15,20 @@ interface Message {
   text: string;
 }
 
+function renderFormattedText(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return (
+        <strong key={idx} className="font-bold text-white">
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <React.Fragment key={idx}>{part}</React.Fragment>;
+  });
+}
+
 export const AiAssistant: React.FC<AiAssistantProps> = ({ products, isOpen, onClose }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -95,8 +109,8 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ products, isOpen, onCl
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-bold text-base">CaceriBot IA</h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40">
-                  Gemini API
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  En línea
                 </span>
               </div>
               <p className="text-xs text-zinc-400">Recomendaciones & Asistente de Menú</p>
@@ -131,7 +145,7 @@ export const AiAssistant: React.FC<AiAssistantProps> = ({ products, isOpen, onCl
                     : 'bg-zinc-900/90 border border-zinc-800 text-zinc-200 rounded-tl-none shadow-sm'
                 }`}
               >
-                {msg.text}
+                {renderFormattedText(msg.text)}
               </div>
               {msg.sender === 'user' && (
                 <div className="w-7 h-7 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0 mt-1">
