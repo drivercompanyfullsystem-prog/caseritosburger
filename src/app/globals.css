@@ -41,3 +41,53 @@
 .dark-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: #52525b;
 }
+
+/* Efecto de brillo dorado animado para productos en promoción */
+@keyframes promoGoldenSweep {
+  0% {
+    transform: translateX(-140%) skewX(-22deg);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.75;
+  }
+  55% {
+    transform: translateX(220%) skewX(-22deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(220%) skewX(-22deg);
+    opacity: 0;
+  }
+}
+
+@keyframes promoGoldenPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 18px rgba(251, 191, 36, 0.35), 0 0 36px rgba(245, 158, 11, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(253, 224, 71, 0.62), 0 0 52px rgba(245, 158, 11, 0.32);
+  }
+}
+
+.promo-golden-card {
+  animation: promoGoldenPulse 2.8s ease-in-out infinite;
+}
+
+.promo-golden-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 55%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(254, 240, 138, 0.14) 30%,
+    rgba(253, 224, 71, 0.45) 50%,
+    rgba(254, 240, 138, 0.14) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: promoGoldenSweep 3.6s ease-in-out infinite;
+}

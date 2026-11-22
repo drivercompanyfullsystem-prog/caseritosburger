@@ -76,6 +76,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     imageUrl: '/menu/burger-tradicional.jpg?v=fhd2',
     available: true,
     isPopular: true,
+    isPromo: true,
+    promoLabel: 'PROMO DEL DÍA',
     tags: ['Incluye Papa Frita', 'Gaseosa 250ml'],
   },
   {
@@ -87,6 +89,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     imageUrl: '/menu/burger-bacon.jpg?v=fhd2',
     available: true,
     isPopular: true,
+    isPromo: true,
+    promoLabel: 'PROMO TOP',
     tags: ['Incluye Papa Frita', 'Gaseosa 250ml'],
   },
   {

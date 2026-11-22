@@ -155,7 +155,7 @@ function saveLocalCache(products: Product[]) {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem('caceritos_products', JSON.stringify(products));
-      localStorage.setItem('caceritos_products_v7', '7');
+      localStorage.setItem('caceritos_products_v8', '8');
     } catch {
       // ignorar
     }
@@ -245,9 +245,9 @@ export async function fetchProducts(): Promise<Product[]> {
   }
 
   if (typeof window !== 'undefined') {
-    const schemaVersion = localStorage.getItem('caceritos_products_v7');
+    const schemaVersion = localStorage.getItem('caceritos_products_v8');
     const cached = localStorage.getItem('caceritos_products');
-    if (cached && schemaVersion === '7') {
+    if (cached && schemaVersion === '8') {
       try {
         return JSON.parse(cached);
       } catch {

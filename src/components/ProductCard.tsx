@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Minus, Flame, Package } from 'lucide-react';
+import { Plus, Minus, Flame, Package, Sparkles } from 'lucide-react';
 import { Product } from '../types';
 import { formatGuaranies } from '../utils/whatsapp';
 import { useCart } from '../context/CartContext';
@@ -31,16 +31,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, comboProduct 
     (tag) => !(hasComboOption && /^combo\s+gs\./i.test(tag.trim()))
   );
 
+  const isPromoActive = Boolean(activeProduct.isPromo && activeProduct.available);
+  const promoBadgeText = activeProduct.promoLabel?.trim() || 'PROMO';
+
   return (
     <div
       className={`group relative bg-zinc-900/90 border rounded-2xl overflow-hidden shadow-lg transition-all duration-300 flex flex-col ${
-        anyVariantInCart
+        isPromoActive
+          ? 'border-amber-400/90 ring-1 ring-yellow-300/60 promo-golden-card'
+          : anyVariantInCart
           ? 'border-orange-500/60 shadow-orange-950/30'
           : 'border-zinc-800 hover:border-orange-500/40 hover:shadow-orange-950/20'
       }`}
     >
       {/* Image Container */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-950">
+      <div
+        className={`relative aspect-[4/3] w-full overflow-hidden bg-zinc-950 ${
+          isPromoActive
+            ? 'promo-golden-shimmer ring-2 ring-inset ring-amber-300/80 shadow-[inset_0_0_24px_rgba(251,191,36,0.35)]'
+            : ''
+        }`}
+      >
         <img
           src={activeProduct.imageUrl || getCategoryPresetImage(activeProduct.category)}
           alt={activeProduct.name}
@@ -49,14 +60,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, comboProduct 
             const fallback = getCategoryPresetImage(activeProduct.category);
             if (target.src !== fallback) target.src = fallback;
           }}
-          className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500"
+          className={`w-full h-full ${
+            (activeProduct.imageUrl || '').includes('papas')
+              ? 'object-contain bg-black'
+              : 'object-cover object-center'
+          } group-hover:scale-105 transition-transform duration-500`}
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60" />
+        <div
+          className={`absolute inset-0 pointer-events-none ${
+            isPromoActive
+              ? 'bg-gradient-to-t from-zinc-950/85 via-amber-400/10 to-yellow-300/15'
+              : 'bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-60'
+          }`}
+        />
 
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-          {product.isPopular && (
+        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
+          {isPromoActive && (
+            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-black tracking-wide uppercase bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500 text-zinc-950 shadow-lg shadow-amber-500/40 border border-yellow-200/80">
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span>{promoBadgeText}</span>
+            </span>
+          )}
+          {product.isPopular && !isPromoActive && (
             <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500 text-zinc-950 backdrop-blur-md shadow-sm">
               <Flame className="w-3.5 h-3.5" />
               <span>Casera Favorita</span>
@@ -76,8 +103,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, comboProduct 
         </div>
 
         {/* Price tag pill */}
-        <div className="absolute bottom-3 right-3 bg-zinc-950/90 backdrop-blur-md border border-zinc-700/80 px-3 py-1.5 rounded-xl shadow-lg">
-          <span className="text-base font-black text-amber-400">
+        <div
+          className={`absolute bottom-3 right-3 z-10 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg ${
+            isPromoActive
+              ? 'bg-gradient-to-r from-amber-500 to-yellow-400 border border-yellow-200 text-zinc-950 shadow-amber-500/40'
+              : 'bg-zinc-950/90 border border-zinc-700/80'
+          }`}
+        >
+          <span
+            className={`text-base font-black ${
+              isPromoActive ? 'text-zinc-950' : 'text-amber-400'
+            }`}
+          >
             {formatGuaranies(activeProduct.price)}
           </span>
         </div>

@@ -58,6 +58,8 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
 
   const [available, setAvailable] = useState(true);
   const [isPopular, setIsPopular] = useState(false);
+  const [isPromo, setIsPromo] = useState(false);
+  const [promoLabel, setPromoLabel] = useState('');
   const [tags, setTags] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
@@ -74,6 +76,8 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
       setImageSource(product.imageSource || 'category_preset');
       setAvailable(product.available);
       setIsPopular(Boolean(product.isPopular));
+      setIsPromo(Boolean(product.isPromo));
+      setPromoLabel(product.promoLabel || '');
       setTags(product.tags ? product.tags.join(', ') : '');
       setImageFile(null);
       setAiImageUrl(null);
@@ -201,6 +205,8 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
         imageSource: finalImageSource,
         available,
         isPopular,
+        isPromo,
+        promoLabel: isPromo ? promoLabel.trim() || 'PROMO' : undefined,
         tags: parsedTags,
       });
 
@@ -501,6 +507,31 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
               <label htmlFor="edit-popular" className="text-xs text-zinc-300">
                 Marcar como Producto Favorito / Destacado
               </label>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-zinc-800">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-promo"
+                  checked={isPromo}
+                  onChange={(e) => setIsPromo(e.target.checked)}
+                  className="w-4 h-4 accent-amber-400 rounded"
+                />
+                <label htmlFor="edit-promo" className="text-xs font-semibold text-amber-300">
+                  ✨ En Promoción (imagen con brillo dorado)
+                </label>
+              </div>
+              {isPromo && (
+                <input
+                  type="text"
+                  maxLength={22}
+                  placeholder="Etiqueta dorada (ej: PROMO, 2x1, OFERTA)"
+                  value={promoLabel}
+                  onChange={(e) => setPromoLabel(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-zinc-950 border border-amber-500/40 rounded-xl text-xs text-amber-200 placeholder-zinc-500 focus:outline-none focus:border-amber-400"
+                />
+              )}
             </div>
           </div>
 

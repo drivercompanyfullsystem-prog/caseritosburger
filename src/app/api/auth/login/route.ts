@@ -5,6 +5,7 @@ import {
   createSessionToken,
   getAdminEmail,
   getAdminPassword,
+  hasCustomAdminPassword,
   safeCompare,
 } from '@/lib/adminSession';
 
@@ -35,8 +36,7 @@ export async function POST(req: NextRequest) {
     const emailOk = adminEmail
       ? await safeCompare(email, adminEmail)
       : /^\S+@\S+\.\S+$/.test(email);
-    const hasCustomEnvPassword = Boolean((process.env.ADMIN_PASSWORD || '').trim());
-    const passwordOk = hasCustomEnvPassword
+    const passwordOk = hasCustomAdminPassword()
       ? await safeCompare(password, adminPassword)
       : (await safeCompare(password, 'admin1234')) || (await safeCompare(password, '1234'));
 

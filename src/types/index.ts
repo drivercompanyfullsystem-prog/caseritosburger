@@ -11,6 +11,8 @@ export interface Product {
   imageSource?: ImageSourceType;
   available: boolean;
   isPopular?: boolean;
+  isPromo?: boolean;
+  promoLabel?: string;
   tags?: string[];
 }
 

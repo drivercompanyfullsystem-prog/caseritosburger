@@ -24,6 +24,7 @@ import {
   UtensilsCrossed,
   Bell,
   BellOff,
+  KeyRound,
 } from 'lucide-react';
 import { OrderRecord, Product } from '@/types';
 import {
@@ -43,6 +44,7 @@ import { EditProductModal } from '@/components/EditProductModal';
 import { PhoneSettingsModal } from '@/components/PhoneSettingsModal';
 import { AdminOrdersPanel } from '@/components/AdminOrdersPanel';
 import { AdminFinancePanel } from '@/components/AdminFinancePanel';
+import { ChangePasswordModal } from '@/components/ChangePasswordModal';
 import {
   getCategoryLabel,
   getCategoryPresetImage,
@@ -82,6 +84,7 @@ export default function AdminDashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -304,6 +307,17 @@ export default function AdminDashboardPage() {
 
             <button
               type="button"
+              onClick={() => setIsPasswordModalOpen(true)}
+              aria-label="Cambiar contraseña"
+              className="hidden sm:flex items-center space-x-1.5 min-h-[40px] px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-amber-300 text-xs font-bold transition whitespace-nowrap"
+              title="Cambiar contraseña de administrador"
+            >
+              <KeyRound className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden lg:inline">Clave</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsCreateModalOpen(true)}
               className="hidden sm:flex items-center space-x-1.5 min-h-[40px] px-3.5 py-2 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-orange-600/30 transition whitespace-nowrap"
             >
@@ -435,23 +449,32 @@ export default function AdminDashboardPage() {
         ) : (
           <>
         {/* Acciones Rápidas Móviles (< sm) */}
-        <div className="grid grid-cols-2 gap-2.5 sm:hidden">
+        <div className="grid grid-cols-3 gap-2 sm:hidden">
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center justify-center space-x-2 min-h-[44px] px-3 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold shadow-lg shadow-orange-600/30 transition active:scale-95"
+            className="flex items-center justify-center space-x-1.5 min-h-[44px] px-2.5 py-2.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white text-xs font-bold shadow-lg shadow-orange-600/30 transition active:scale-95"
           >
             <PlusCircle className="w-4 h-4 shrink-0" />
-            <span>Nuevo Producto</span>
+            <span>Nuevo</span>
           </button>
 
           <button
             type="button"
             onClick={() => setIsPhoneModalOpen(true)}
-            className="flex items-center justify-center space-x-2 min-h-[44px] px-3 py-2.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition active:scale-95"
+            className="flex items-center justify-center space-x-1.5 min-h-[44px] px-2.5 py-2.5 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition active:scale-95"
           >
             <Phone className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="truncate">WhatsApp</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPasswordModalOpen(true)}
+            className="flex items-center justify-center space-x-1.5 min-h-[44px] px-2.5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-amber-500/40 text-amber-300 text-xs font-bold transition active:scale-95"
+          >
+            <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Clave</span>
           </button>
         </div>
 
@@ -595,13 +618,22 @@ export default function AdminDashboardPage() {
                       const fallback = getCategoryPresetImage(product.category);
                       if (target.src !== fallback) target.src = fallback;
                     }}
-                    className={`w-full h-full object-cover transition ${
+                    className={`w-full h-full ${
+                      (product.imageUrl || '').includes('papas')
+                        ? 'object-contain bg-black'
+                        : 'object-cover'
+                    } transition ${
                       product.available ? '' : 'opacity-60 grayscale-[35%]'
                     }`}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent opacity-65" />
 
                   <div className="absolute top-2.5 left-2.5 flex flex-wrap gap-1.5">
+                    {product.isPromo && (
+                      <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-gradient-to-r from-yellow-300 via-amber-400 to-yellow-500 text-zinc-950 shadow">
+                        <span>✨ {product.promoLabel || 'PROMO'}</span>
+                      </span>
+                    )}
                     {product.isPopular && (
                       <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500 text-zinc-950">
                         <Flame className="w-3 h-3" />
@@ -735,6 +767,12 @@ export default function AdminDashboardPage() {
           setCurrentPhone(phone);
           showToast(`WhatsApp actualizado a +${phone}`);
         }}
+      />
+
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+        onSuccess={(msg) => showToast(msg)}
       />
     </div>
   );

@@ -2,10 +2,14 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
+  EmailAuthProvider,
   User,
   onAuthStateChanged,
+  reauthenticateWithCredential,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '../lib/firebase';
 
@@ -20,6 +24,11 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ mode: 'firebase' | 'server'; message: string }>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<{ mode: 'firebase' | 'server'; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -71,7 +80,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const login = async (email: string, password: string) => {
-    // 1. Si Firebase Auth está activo, autenticar contra Firebase (para dar acceso real a Firestore/Storage)
     if (isFirebaseConfigured() && auth) {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const idToken = await userCredential.user.getIdToken();
@@ -93,7 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // 2. Si Firebase no está configurado, autenticar contra /api/auth/login (ADMIN_PASSWORD)
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -112,6 +119,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user || { email });
   };
 
+  const resetPassword = async (
+    email: string
+  ): Promise<{ mode: 'firebase' | 'server'; message: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      throw new Error('Ingresa un correo electrónico válido.');
+    }
+
+    if (isFirebaseConfigured() && auth) {
+      await sendPasswordResetEmail(auth, cleanEmail);
+      return {
+        mode: 'firebase',
+        message:
+          'Si el correo está registrado, enviamos un enlace oficial para restablecer tu contraseña. Revisa tu bandeja de entrada y Spam.',
+      };
+    }
+
+    return {
+      mode: 'server',
+      message:
+        'Para enviar correos automáticos de recuperación, conecta Firebase Authentication en Vercel (variables NEXT_PUBLIC_FIREBASE_*). Mientras tanto, puedes actualizar ADMIN_PASSWORD en Vercel → Settings → Environment Variables.',
+    };
+  };
+
+  const changePassword = async (
+    currentPassword: string,
+    newPassword: string
+  ): Promise<{ mode: 'firebase' | 'server'; message: string }> => {
+    if (newPassword.trim().length < 6) {
+      throw new Error('La nueva contraseña debe tener al menos 6 caracteres.');
+    }
+
+    if (isFirebaseConfigured() && auth && auth.currentUser && auth.currentUser.email) {
+      const credential = EmailAuthProvider.credential(auth.currentUser.email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updatePassword(auth.currentUser, newPassword.trim());
+      return {
+        mode: 'firebase',
+        message: '¡Contraseña actualizada en Firebase Authentication!',
+      };
+    }
+
+    const res = await fetch('/api/auth/password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword: newPassword.trim() }),
+    });
+
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+
+    if (!res.ok) {
+      throw new Error(data.error || 'No se pudo cambiar la contraseña.');
+    }
+
+    return {
+      mode: 'server',
+      message: data.message || 'Contraseña actualizada correctamente.',
+    };
+  };
+
   const logout = async () => {
     try {
       await fetch('/api/auth/session', { method: 'DELETE' });
@@ -124,7 +194,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, logout, refresh, resetPassword, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   );

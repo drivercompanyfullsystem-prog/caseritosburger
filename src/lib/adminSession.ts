@@ -8,6 +8,11 @@ export const SESSION_MAX_AGE = 60 * 60 * 24 * 5; // 5 días en segundos
 
 const DEV_FALLBACK_PASSWORD = 'admin1234';
 
+declare global {
+  // eslint-disable-next-line no-var
+  var __caseritosRuntimeAdminPassword: string | undefined;
+}
+
 export interface AdminSessionPayload {
   email: string;
   exp: number; // timestamp en segundos
@@ -15,10 +20,23 @@ export interface AdminSessionPayload {
 
 const encoder = new TextEncoder();
 
-/** Contraseña de administrador configurada (usa ADMIN_PASSWORD o fallback admin1234 si no se definió). */
+/** Contraseña de administrador activa (prioriza cambio en sesión, luego ADMIN_PASSWORD, luego fallback). */
 export function getAdminPassword(): string {
+  if (globalThis.__caseritosRuntimeAdminPassword) {
+    return globalThis.__caseritosRuntimeAdminPassword;
+  }
   const configured = (process.env.ADMIN_PASSWORD || '').trim();
   return configured || DEV_FALLBACK_PASSWORD;
+}
+
+export function setRuntimeAdminPassword(newPassword: string): void {
+  globalThis.__caseritosRuntimeAdminPassword = newPassword.trim();
+}
+
+export function hasCustomAdminPassword(): boolean {
+  return Boolean(
+    globalThis.__caseritosRuntimeAdminPassword || (process.env.ADMIN_PASSWORD || '').trim()
+  );
 }
 
 /** Correo de administrador opcional. Si no está configurado, se acepta cualquier correo válido. */
@@ -27,15 +45,20 @@ export function getAdminEmail(): string | null {
   return configured || null;
 }
 
+/**
+ * Secreto determinista para firmar cookies HMAC-SHA256.
+ * IMPORTANTE: No depende de `globalThis.__caseritosRuntimeAdminPassword` para que
+ * el Edge Middleware y las rutas API Node.js compartan siempre exactamente la misma clave.
+ */
 function getSessionSecret(): string {
   const explicit = (process.env.ADMIN_SESSION_SECRET || '').trim();
   if (explicit) return explicit;
-  const password = getAdminPassword();
-  if (password) return `caseritos-admin-session::${password}`;
+  const envPassword = (process.env.ADMIN_PASSWORD || '').trim();
+  if (envPassword) return `caseritos-admin-session::${envPassword}`;
   const projectSide =
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-    'caseritos-default-secret';
+    DEV_FALLBACK_PASSWORD;
   return `caseritos-admin-session::${projectSide}`;
 }
 

@@ -58,6 +58,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   const [isPopular, setIsPopular] = useState(false);
+  const [isPromo, setIsPromo] = useState(false);
+  const [promoLabel, setPromoLabel] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -168,6 +170,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
         imageSource: finalImageSource,
         available: true,
         isPopular,
+        isPromo,
+        promoLabel: isPromo ? promoLabel.trim() || 'PROMO' : undefined,
       });
 
       onProductsUpdated([newProd, ...products]);
@@ -178,6 +182,8 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
       setAiImageUrl(null);
       setAiAttempt(0);
       setIsPopular(false);
+      setIsPromo(false);
+      setPromoLabel('');
       setStatusMessage('¡Producto creado con éxito!');
       setTimeout(() => setStatusMessage(''), 3000);
       setTab('manage');
@@ -449,17 +455,44 @@ export const AdminProductModal: React.FC<AdminProductModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="popular"
-                  checked={isPopular}
-                  onChange={(e) => setIsPopular(e.target.checked)}
-                  className="w-4 h-4 accent-orange-500 rounded"
-                />
-                <label htmlFor="popular" className="text-xs text-zinc-300">
-                  Marcar como Producto Favorito / Destacado
-                </label>
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="popular"
+                    checked={isPopular}
+                    onChange={(e) => setIsPopular(e.target.checked)}
+                    className="w-4 h-4 accent-orange-500 rounded"
+                  />
+                  <label htmlFor="popular" className="text-xs text-zinc-300">
+                    Marcar como Producto Favorito / Destacado
+                  </label>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="promo-new"
+                      checked={isPromo}
+                      onChange={(e) => setIsPromo(e.target.checked)}
+                      className="w-4 h-4 accent-amber-400 rounded"
+                    />
+                    <label htmlFor="promo-new" className="text-xs font-semibold text-amber-300">
+                      ✨ En Promoción (imagen con brillo dorado)
+                    </label>
+                  </div>
+                  {isPromo && (
+                    <input
+                      type="text"
+                      maxLength={22}
+                      placeholder="Etiqueta dorada (ej: PROMO, 2x1, OFERTA)"
+                      value={promoLabel}
+                      onChange={(e) => setPromoLabel(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-zinc-900 border border-amber-500/40 rounded-xl text-xs text-amber-200 placeholder-zinc-500 focus:outline-none focus:border-amber-400"
+                    />
+                  )}
+                </div>
               </div>
 
               <button
