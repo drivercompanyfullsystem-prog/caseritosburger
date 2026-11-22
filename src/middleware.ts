@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/adminSession';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const sessionCookie = request.cookies.get('__session')?.value;
-  const isAuthenticated = Boolean(sessionCookie && sessionCookie.trim().length > 0);
+  const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE_NAME)?.value);
+  const isAuthenticated = Boolean(session);
 
   const isLoginRoute = pathname === '/admin/login';
 
-  // Si el usuario visita /admin/login y ya está autenticado -> redirigir a /admin/dashboard
+  // Si visita /admin/login y ya está autenticado -> redirigir al dashboard
   if (isLoginRoute) {
     if (isAuthenticated) {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url));
@@ -26,14 +27,17 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Para cualquier otra ruta bajo /admin/*
+  // Cualquier otra ruta bajo /admin/*
   if (pathname.startsWith('/admin')) {
     if (!isAuthenticated) {
-      const loginUrl = new URL('/admin/login', request.url);
-      return NextResponse.redirect(loginUrl);
+      const response = NextResponse.redirect(new URL('/admin/login', request.url));
+      // Limpia cookies viejas o inválidas
+      if (request.cookies.get(SESSION_COOKIE_NAME)) {
+        response.cookies.set(SESSION_COOKIE_NAME, '', { path: '/', maxAge: 0 });
+      }
+      return response;
     }
 
-    // Si visita exactamente /admin estando autenticado, redirigir a /admin/dashboard
     if (pathname === '/admin') {
       return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     }

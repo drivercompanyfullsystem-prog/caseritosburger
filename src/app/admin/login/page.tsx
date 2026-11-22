@@ -3,9 +3,17 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ShieldCheck, Mail, Lock, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
+import {
+  ShieldCheck,
+  Mail,
+  Lock,
+  Loader2,
+  ArrowLeft,
+  AlertCircle,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { isFirebaseConfigured } from '@/lib/firebase';
 
 export default function AdminLoginPage() {
   const { login } = useAuth();
@@ -13,10 +21,9 @@ export default function AdminLoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const firebaseActive = isFirebaseConfigured();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,10 +32,10 @@ export default function AdminLoginPage() {
 
     try {
       await login(email.trim(), password);
-      router.push('/admin/dashboard');
+      router.replace('/admin/dashboard');
       router.refresh();
-    } catch (err: any) {
-      const code = err?.code || '';
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code || '';
       if (
         code === 'auth/invalid-credential' ||
         code === 'auth/wrong-password' ||
@@ -40,9 +47,12 @@ export default function AdminLoginPage() {
       } else if (code === 'auth/too-many-requests') {
         setError('Demasiados intentos fallidos. Intenta de nuevo más tarde.');
       } else {
-        setError(err?.message || 'Error al iniciar sesión. Verifica tus credenciales.');
+        setError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Error al iniciar sesión. Verifica tus credenciales.'
+        );
       }
-    } finally {
       setIsSubmitting(false);
     }
   };
@@ -99,6 +109,7 @@ export default function AdminLoginPage() {
                 <input
                   type="email"
                   required
+                  autoComplete="username"
                   placeholder="admin@caseritos.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -114,23 +125,24 @@ export default function AdminLoginPage() {
               <div className="relative">
                 <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+                  className="w-full pl-10 pr-11 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 transition"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
-
-            {!firebaseActive && (
-              <div className="p-3 rounded-xl bg-amber-950/30 border border-amber-600/30 text-[11px] text-amber-300/90 leading-relaxed">
-                <strong>Modo Local Activo:</strong> Configura tus variables de Firebase Auth en{' '}
-                <code>.env.local</code> para autenticación en la nube, o ingresa con cualquier correo y clave{' '}
-                <strong>admin1234</strong> (o <strong>1234</strong>).
-              </div>
-            )}
 
             <button
               type="submit"

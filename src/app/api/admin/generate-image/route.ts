@@ -5,6 +5,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { storage, isFirebaseConfigured } from '@/lib/firebase';
+import { SESSION_COOKIE_NAME, verifySessionToken } from '@/lib/adminSession';
 import {
   ADMIN_CATEGORY_OPTIONS,
   getCategoryPresetImage,
@@ -107,10 +108,10 @@ async function persistGeneratedBuffer(buffer: Buffer, slug: string): Promise<str
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Verificar sesión de administrador
+    // 1. Verificar sesión de administrador (cookie firmada)
     const cookieStore = cookies();
-    const sessionToken = cookieStore.get('__session')?.value;
-    if (!sessionToken || sessionToken.trim() === '') {
+    const session = await verifySessionToken(cookieStore.get(SESSION_COOKIE_NAME)?.value);
+    if (!session) {
       return NextResponse.json(
         { error: 'No autorizado. Debes iniciar sesión como administrador.' },
         { status: 401 }
