@@ -46,3 +46,33 @@ export interface CustomerOrder {
   items: CartItem[];
   totalPrice: number;
 }
+
+export type OrderStatus = 'pendiente' | 'en_preparacion' | 'entregado' | 'cancelado';
+
+export interface OrderRecordItem {
+  productId: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  instructions?: string;
+}
+
+export interface OrderRecord {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  phoneNumber: string;
+  deliveryMethod: 'delivery' | 'pickup';
+  address?: string;
+  references?: string;
+  paymentMethod: 'Efectivo' | 'Transferencia' | 'POS';
+  cashAmount?: string;
+  notes?: string;
+  items: OrderRecordItem[];
+  totalPrice: number;
+  status: OrderStatus;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+}

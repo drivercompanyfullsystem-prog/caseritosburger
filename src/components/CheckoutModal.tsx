@@ -33,6 +33,7 @@ import {
   buildGoogleMapsUrl,
 } from '../utils/whatsapp';
 import { Coordinates, CustomerOrder, LocationState } from '../types';
+import { recordCustomerOrder } from '../lib/orders';
 
 function getGeolocationErrorMessage(err: GeolocationPositionError): string {
   switch (err.code) {
@@ -238,6 +239,9 @@ export const CheckoutModal: React.FC = () => {
     };
 
     const whatsappUrl = getWhatsAppUrl(order);
+
+    // Registrar pedido en el panel admin con estado "pendiente" (sin bloquear la apertura de WhatsApp)
+    void recordCustomerOrder(order);
 
     // Abrir WhatsApp en pestaña nueva
     window.open(whatsappUrl, '_blank');

@@ -19,8 +19,11 @@ import {
   AlertTriangle,
   X,
   Database,
+  ClipboardList,
+  TrendingUp,
+  UtensilsCrossed,
 } from 'lucide-react';
-import { Product } from '@/types';
+import { OrderRecord, Product } from '@/types';
 import {
   subscribeToProducts,
   fetchBusinessPhoneFromCloud,
@@ -28,12 +31,15 @@ import {
   deleteProduct,
   isFirebaseConfigured,
 } from '@/lib/firebase';
+import { subscribeToOrders } from '@/lib/orders';
 import { formatGuaranies, getBusinessWhatsAppPhone } from '@/utils/whatsapp';
 import { useAuth } from '@/context/AuthContext';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { AdminProductModal } from '@/components/AdminProductModal';
 import { EditProductModal } from '@/components/EditProductModal';
 import { PhoneSettingsModal } from '@/components/PhoneSettingsModal';
+import { AdminOrdersPanel } from '@/components/AdminOrdersPanel';
+import { AdminFinancePanel } from '@/components/AdminFinancePanel';
 import {
   getCategoryLabel,
   getCategoryPresetImage,
@@ -54,7 +60,9 @@ export default function AdminDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<'menu' | 'orders' | 'finance'>('menu');
   const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,11 +91,17 @@ export default function AdminDashboardPage() {
     });
 
     setIsLoading(true);
-    const unsubscribe = subscribeToProducts((list) => {
+    const unsubscribeProducts = subscribeToProducts((list) => {
       setProducts(list);
       setIsLoading(false);
     });
-    return () => unsubscribe();
+    const unsubscribeOrders = subscribeToOrders((orderList) => {
+      setOrders(orderList);
+    });
+    return () => {
+      unsubscribeProducts();
+      unsubscribeOrders();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -145,6 +159,17 @@ export default function AdminDashboardPage() {
 
   const availableCount = products.filter((p) => p.available).length;
   const outOfStockCount = products.length - availableCount;
+  const activeOrdersCount = orders.filter(
+    (o) => o.status === 'pendiente' || o.status === 'en_preparacion'
+  ).length;
+  const deliveredTodayTotal = orders
+    .filter((o) => {
+      if (o.status !== 'entregado') return false;
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+      return (o.completedAt || o.updatedAt || o.createdAt) >= startOfDay;
+    })
+    .reduce((sum, o) => sum + o.totalPrice, 0);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col pb-12">
@@ -244,7 +269,71 @@ export default function AdminDashboardPage() {
       </header>
 
       {/* Contenido Principal del Dashboard */}
-      <main className="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 w-full space-y-5 sm:space-y-7">
+      <main className="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-7 w-full space-y-5 sm:space-y-6">
+        {/* Navegación Principal por Pestañas (Menú / Pedidos / Finanzas) */}
+        <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setActiveTab('menu')}
+            className={`min-h-[44px] px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition ${
+              activeTab === 'menu'
+                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+            }`}
+          >
+            <UtensilsCrossed className="w-4 h-4 shrink-0" />
+            <span>Menú</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('orders')}
+            className={`min-h-[44px] px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition ${
+              activeTab === 'orders'
+                ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4 shrink-0" />
+            <span>Pedidos</span>
+            {activeOrdersCount > 0 && (
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none ${
+                  activeTab === 'orders'
+                    ? 'bg-black/30 text-white'
+                    : 'bg-amber-500 text-zinc-950'
+                }`}
+              >
+                {activeOrdersCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('finance')}
+            className={`min-h-[44px] px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition ${
+              activeTab === 'finance'
+                ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+            }`}
+          >
+            <TrendingUp className="w-4 h-4 shrink-0" />
+            <span>Finanzas</span>
+          </button>
+        </div>
+
+        {activeTab === 'orders' ? (
+          <AdminOrdersPanel
+            orders={orders}
+            products={products}
+            onOrdersChange={setOrders}
+            onToast={showToast}
+          />
+        ) : activeTab === 'finance' ? (
+          <AdminFinancePanel orders={orders} />
+        ) : (
+          <>
         {/* Acciones Rápidas Móviles (< sm) */}
         <div className="grid grid-cols-2 gap-2.5 sm:hidden">
           <button
@@ -306,18 +395,26 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 sm:p-5 flex items-center space-x-3 sm:space-x-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('finance')}
+            className="text-left bg-zinc-900/90 hover:border-emerald-500/40 border border-zinc-800 rounded-2xl p-3.5 sm:p-5 flex items-center space-x-3 sm:space-x-4 transition"
+          >
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
               <Database className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] sm:text-xs text-zinc-400 font-medium truncate">Estado</p>
-              <p className="text-xs sm:text-sm font-bold text-amber-400 truncate mt-0.5">
+              <p className="text-[11px] sm:text-xs text-zinc-400 font-medium truncate">
+                Ventas Hoy
+              </p>
+              <p className="text-sm sm:text-base font-black text-emerald-400 truncate mt-0.5">
+                {formatGuaranies(deliveredTodayTotal)}
+              </p>
+              <p className="text-[10px] sm:text-[11px] text-zinc-500 truncate">
                 {isFirebaseConfigured() ? 'Firebase Cloud' : 'Sync Servidor'}
               </p>
-              <p className="text-[10px] sm:text-[11px] text-zinc-500 truncate">Km 13.5 • Gs.</p>
             </div>
-          </div>
+          </button>
         </div>
 
         {/* Controles de Búsqueda y Filtro */}
@@ -507,6 +604,8 @@ export default function AdminDashboardPage() {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </main>
 
