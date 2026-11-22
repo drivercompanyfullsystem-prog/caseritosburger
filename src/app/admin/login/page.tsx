@@ -218,6 +218,19 @@ export default function AdminLoginPage() {
                   </>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('reset');
+                  setError('');
+                  setInfoMessage('');
+                }}
+                className="w-full min-h-[42px] py-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-amber-300 text-xs font-semibold transition flex items-center justify-center gap-2"
+              >
+                <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                <span>¿Olvidaste tu contraseña? Restablecer acceso</span>
+              </button>
             </form>
           ) : (
             <form onSubmit={handleResetPassword} className="space-y-4">

@@ -437,18 +437,7 @@ export default function AdminDashboardPage() {
           </button>
         </div>
 
-        {activeTab === 'orders' ? (
-          <AdminOrdersPanel
-            orders={orders}
-            products={products}
-            onOrdersChange={setOrders}
-            onToast={showToast}
-          />
-        ) : activeTab === 'finance' ? (
-          <AdminFinancePanel orders={orders} onToast={showToast} />
-        ) : (
-          <>
-        {/* Acciones Rápidas Móviles (< sm) */}
+        {/* Acciones Rápidas Móviles siempre visibles en todas las pestañas (< sm) */}
         <div className="grid grid-cols-3 gap-2 sm:hidden">
           <button
             type="button"
@@ -477,6 +466,18 @@ export default function AdminDashboardPage() {
             <span>Clave</span>
           </button>
         </div>
+
+        {activeTab === 'orders' ? (
+          <AdminOrdersPanel
+            orders={orders}
+            products={products}
+            onOrdersChange={setOrders}
+            onToast={showToast}
+          />
+        ) : activeTab === 'finance' ? (
+          <AdminFinancePanel orders={orders} onToast={showToast} />
+        ) : (
+          <>
 
         {/* Tarjetas de Estadísticas Rápidas (2x2 compacto en móvil, 4 cols en desktop) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
