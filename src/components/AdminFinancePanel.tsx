@@ -11,15 +11,24 @@ import {
   CreditCard,
   Trophy,
   Receipt,
+  MessageCircle,
+  FileDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { OrderRecord } from '@/types';
 import { formatGuaranies } from '@/utils/whatsapp';
+import {
+  FinancePeriod,
+  buildCashClosingWhatsAppUrl,
+  downloadCashClosingCSV,
+  downloadCashClosingPDF,
+  getPeriodLabel,
+} from '@/utils/financeReport';
 
 interface AdminFinancePanelProps {
   orders: OrderRecord[];
+  onToast?: (message: string) => void;
 }
-
-type FinancePeriod = 'today' | 'week' | 'month' | 'all';
 
 function getStartTimestamp(period: FinancePeriod): number {
   const now = new Date();
@@ -37,7 +46,7 @@ function getStartTimestamp(period: FinancePeriod): number {
   return 0;
 }
 
-export const AdminFinancePanel: React.FC<AdminFinancePanelProps> = ({ orders }) => {
+export const AdminFinancePanel: React.FC<AdminFinancePanelProps> = ({ orders, onToast }) => {
   const [period, setPeriod] = useState<FinancePeriod>('today');
 
   const stats = useMemo(() => {
@@ -129,39 +138,92 @@ export const AdminFinancePanel: React.FC<AdminFinancePanelProps> = ({ orders }) 
     },
   ];
 
+  const summaryPayload = {
+    periodLabel: getPeriodLabel(period),
+    generatedAt: new Date(),
+    ...stats,
+  };
+
+  const whatsappClosingUrl = buildCashClosingWhatsAppUrl(summaryPayload);
+
+  const handleDownloadPdf = () => {
+    downloadCashClosingPDF({ ...summaryPayload, generatedAt: new Date() });
+    onToast?.('Reporte de Cierre de Caja descargado en PDF');
+  };
+
+  const handleDownloadCsv = () => {
+    downloadCashClosingCSV({ ...summaryPayload, generatedAt: new Date() });
+    onToast?.('Reporte de ventas descargado en Excel (CSV)');
+  };
+
   return (
     <div className="space-y-5">
-      {/* Selector de período */}
-      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
-        <div>
-          <h2 className="text-lg sm:text-xl font-black text-white">Resumen Financiero</h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Solo los pedidos marcados como <strong className="text-emerald-400">Entregados</strong> suman a tus ingresos reales.
-          </p>
+      {/* Selector de período + Acciones de Cierre de Caja */}
+      <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+          <div>
+            <h2 className="text-lg sm:text-xl font-black text-white">
+              Resumen Financiero & Cierre de Caja
+            </h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Solo los pedidos marcados como <strong className="text-emerald-400">Entregados</strong> suman a tus ingresos reales.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-950 border border-zinc-800 rounded-xl w-full sm:w-auto">
+            {(
+              [
+                { id: 'today', label: 'Hoy' },
+                { id: 'week', label: '7 días' },
+                { id: 'month', label: 'Mes' },
+                { id: 'all', label: 'Todo' },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setPeriod(tab.id)}
+                className={`px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                  period === tab.id
+                    ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-1 p-1 bg-zinc-950 border border-zinc-800 rounded-xl w-full sm:w-auto">
-          {(
-            [
-              { id: 'today', label: 'Hoy' },
-              { id: 'week', label: '7 días' },
-              { id: 'month', label: 'Mes' },
-              { id: 'all', label: 'Todo' },
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setPeriod(tab.id)}
-              className={`px-2.5 sm:px-3.5 py-2 rounded-lg text-xs font-bold whitespace-nowrap transition ${
-                period === tab.id
-                  ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Botones de Cierre de Caja (WhatsApp, PDF y Excel CSV) */}
+        <div className="pt-3 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <a
+            href={whatsappClosingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-h-[42px] px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md shadow-emerald-950/40 transition"
+          >
+            <MessageCircle className="w-4 h-4 shrink-0" />
+            <span>Enviar Cierre por WhatsApp</span>
+          </a>
+
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            className="min-h-[42px] px-3.5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center justify-center gap-2 transition"
+          >
+            <FileDown className="w-4 h-4 shrink-0" />
+            <span>Descargar Cierre PDF</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadCsv}
+            className="min-h-[42px] px-3.5 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs font-bold flex items-center justify-center gap-2 transition"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Exportar Excel (CSV)</span>
+          </button>
         </div>
       </div>
 

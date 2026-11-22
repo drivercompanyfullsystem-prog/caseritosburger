@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,6 +22,8 @@ import {
   ClipboardList,
   TrendingUp,
   UtensilsCrossed,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import { OrderRecord, Product } from '@/types';
 import {
@@ -31,8 +33,9 @@ import {
   deleteProduct,
   isFirebaseConfigured,
 } from '@/lib/firebase';
-import { subscribeToOrders } from '@/lib/orders';
+import { fetchOrders, subscribeToOrders } from '@/lib/orders';
 import { formatGuaranies, getBusinessWhatsAppPhone } from '@/utils/whatsapp';
+import { playNewOrderChime } from '@/utils/financeReport';
 import { useAuth } from '@/context/AuthContext';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { AdminProductModal } from '@/components/AdminProductModal';
@@ -68,6 +71,12 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPhone, setCurrentPhone] = useState('595982606227');
   const [toast, setToast] = useState<string | null>(null);
+  const [alertsEnabled, setAlertsEnabled] = useState(true);
+  const [incomingOrderAlert, setIncomingOrderAlert] = useState<OrderRecord | null>(null);
+
+  const knownOrderIdsRef = useRef<Set<string> | null>(null);
+  const alertsEnabledRef = useRef(true);
+  alertsEnabledRef.current = alertsEnabled;
 
   // Modales CRUD
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -95,12 +104,36 @@ export default function AdminDashboardPage() {
       setProducts(list);
       setIsLoading(false);
     });
-    const unsubscribeOrders = subscribeToOrders((orderList) => {
+    const handleOrderListUpdate = (orderList: OrderRecord[]) => {
+      if (knownOrderIdsRef.current === null) {
+        knownOrderIdsRef.current = new Set(orderList.map((o) => o.id));
+      } else {
+        const brandNew = orderList.find(
+          (o) => !knownOrderIdsRef.current!.has(o.id) && o.status === 'pendiente'
+        );
+        for (const o of orderList) knownOrderIdsRef.current.add(o.id);
+
+        if (brandNew) {
+          setIncomingOrderAlert(brandNew);
+          if (alertsEnabledRef.current) {
+            playNewOrderChime();
+          }
+        }
+      }
       setOrders(orderList);
-    });
+    };
+
+    const unsubscribeOrders = subscribeToOrders(handleOrderListUpdate);
+
+    // Sondeo suave cada 15s para detectar pedidos nuevos incluso sin WebSocket de Firebase
+    const pollInterval = setInterval(() => {
+      fetchOrders().then(handleOrderListUpdate).catch(() => {});
+    }, 15000);
+
     return () => {
       unsubscribeProducts();
       unsubscribeOrders();
+      clearInterval(pollInterval);
     };
   }, []);
 
@@ -219,6 +252,33 @@ export default function AdminDashboardPage() {
 
           {/* Acciones de Cabecera (táctiles >= 40px, sin colisiones en 390px) */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !alertsEnabled;
+                setAlertsEnabled(next);
+                if (next) playNewOrderChime();
+                showToast(
+                  next
+                    ? 'Alertas sonoras de pedidos activadas'
+                    : 'Alertas sonoras silenciadas'
+                );
+              }}
+              aria-label={alertsEnabled ? 'Silenciar alertas' : 'Activar alertas'}
+              className={`flex items-center justify-center min-w-[40px] min-h-[40px] px-2.5 rounded-xl border text-xs font-semibold transition ${
+                alertsEnabled
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+              }`}
+              title={alertsEnabled ? 'Alertas sonoras activas (clic para silenciar)' : 'Alertas silenciadas (clic para activar)'}
+            >
+              {alertsEnabled ? (
+                <Bell className="w-4 h-4 shrink-0" />
+              ) : (
+                <BellOff className="w-4 h-4 shrink-0" />
+              )}
+            </button>
+
             <Link
               href="/"
               target="_blank"
@@ -270,6 +330,46 @@ export default function AdminDashboardPage() {
 
       {/* Contenido Principal del Dashboard */}
       <main className="flex-1 max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-7 w-full space-y-5 sm:space-y-6">
+        {/* Alerta en vivo de nuevo pedido entrante */}
+        {incomingOrderAlert && (
+          <div className="p-3.5 sm:p-4 bg-gradient-to-r from-orange-950/80 via-amber-950/60 to-zinc-900 border border-amber-500/60 rounded-2xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shrink-0">
+                <Bell className="w-4 h-4 animate-bounce" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs sm:text-sm font-black text-amber-200 truncate">
+                  ¡Nuevo pedido recibido! {incomingOrderAlert.orderNumber}
+                </p>
+                <p className="text-[11px] text-zinc-300 truncate">
+                  {incomingOrderAlert.customerName} • {formatGuaranies(incomingOrderAlert.totalPrice)}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('orders');
+                  setIncomingOrderAlert(null);
+                }}
+                className="flex-1 sm:flex-none min-h-[38px] px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-black transition"
+              >
+                Ver Pedido
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncomingOrderAlert(null)}
+                aria-label="Cerrar alerta de pedido"
+                className="min-w-[36px] min-h-[36px] rounded-xl bg-zinc-900/80 text-zinc-400 hover:text-white flex items-center justify-center"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Navegación Principal por Pestañas (Menú / Pedidos / Finanzas) */}
         <div className="grid grid-cols-3 gap-1.5 p-1.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl">
           <button
@@ -331,7 +431,7 @@ export default function AdminDashboardPage() {
             onToast={showToast}
           />
         ) : activeTab === 'finance' ? (
-          <AdminFinancePanel orders={orders} />
+          <AdminFinancePanel orders={orders} onToast={showToast} />
         ) : (
           <>
         {/* Acciones Rápidas Móviles (< sm) */}
